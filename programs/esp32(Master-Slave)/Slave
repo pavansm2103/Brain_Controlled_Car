@@ -1,0 +1,22 @@
+#include "BluetoothSerial.h"
+
+BluetoothSerial SerialBT;
+
+void setup() {
+  Serial.begin(115200);
+
+  SerialBT.begin("ESP32_Slave");
+
+  Serial.println("Bluetooth Slave Started");
+  Serial.println("Name: ESP32_Slave");
+}
+
+void loop() {
+  if (SerialBT.hasClient()) {
+    Serial.println("MASTER CONNECTED!");
+  } else {
+    Serial.println("Waiting for Master...");
+  }
+
+  delay(1000);
+}
