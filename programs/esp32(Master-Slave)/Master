@@ -1,0 +1,33 @@
+#include "BluetoothSerial.h"
+
+BluetoothSerial SerialBT;
+
+void setup() {
+
+  Serial.begin(115200);
+
+  SerialBT.begin("ESP32_Master", true);
+
+  Serial.println("Master started");
+  Serial.println("Trying to connect...");
+
+  while (!SerialBT.connect("ESP32_Slave")) {
+
+    Serial.println("Connection failed. Retrying...");
+
+    delay(2000);
+  }
+
+  Serial.println("CONNECTED!");
+}
+
+void loop() {
+
+  if (SerialBT.connected()) {
+    Serial.println("Bluetooth connected");
+  } else {
+    Serial.println("Bluetooth disconnected");
+  }
+
+  delay(1000);
+}
