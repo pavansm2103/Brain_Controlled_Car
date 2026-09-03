@@ -1,0 +1,17 @@
+#include "BluetoothSerial.h"
+
+BluetoothSerial SerialBT;
+
+void setup() {
+  Serial.begin(115200);
+
+  SerialBT.begin("ESP32_Slave");
+
+  Serial.println("Slave Started");
+  Serial.print("Slave MAC Address: ");
+  Serial.println(SerialBT.getBtAddressString());
+}
+
+void loop() {
+  delay(1000);
+}
