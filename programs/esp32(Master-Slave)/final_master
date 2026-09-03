@@ -1,0 +1,51 @@
+#include "BluetoothSerial.h"
+
+BluetoothSerial SerialBT;
+
+// Slave Bluetooth MAC address
+uint8_t slaveAddress[] = {
+  0xD4, 0xE9, 0xF4, 0x79, 0x28, 0xDA
+};
+
+void setup() {
+
+  Serial.begin(115200);
+
+  // Start Bluetooth in Master mode
+  SerialBT.begin("ESP32_Master", true);
+
+  Serial.println("Master Started");
+  Serial.println("Connecting to Slave...");
+
+  bool connected = SerialBT.connect(slaveAddress);
+
+  if (connected) {
+
+    Serial.println("================================");
+    Serial.println("CONNECTED TO ESP32 SLAVE!");
+    Serial.println("================================");
+
+  } else {
+
+    Serial.println("================================");
+    Serial.println("CONNECTION FAILED!");
+    Serial.println("================================");
+  }
+}
+
+void loop() {
+
+  if (SerialBT.connected()) {
+
+    Serial.println("Bluetooth Connected");
+
+    // Test command
+    SerialBT.println("S");
+
+  } else {
+
+    Serial.println("Bluetooth Disconnected");
+  }
+
+  delay(2000);
+}
