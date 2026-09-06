@@ -1,0 +1,372 @@
+#include <Arduino.h>
+#include "BluetoothSerial.h"
+
+BluetoothSerial SerialBT;
+
+
+// =====================================================
+// L298N MOTOR DRIVER
+// =====================================================
+
+// Motor A - Left motor
+#define IN1 27
+#define IN2 26
+#define ENA 14
+
+
+// Motor B - Right motor
+#define IN3 25
+#define IN4 33
+#define ENB 13
+
+
+// =====================================================
+// PWM SETTINGS
+// ESP32 Arduino Core 3.x
+// =====================================================
+
+const int pwmFrequency = 5000;
+
+const int pwmResolution = 8;
+
+
+// =====================================================
+// MOTOR SPEED
+// =====================================================
+
+const int defaultSpeed = 200;
+
+const int turnSpeed = 170;
+
+
+// =====================================================
+// SAFETY TIMEOUT
+// =====================================================
+
+// Robot automatically stops if no command
+// is received within this time.
+
+const unsigned long commandTimeout = 1000;
+
+unsigned long lastCommandTime = 0;
+
+
+// =====================================================
+// SETUP
+// =====================================================
+
+void setup() {
+
+  Serial.begin(115200);
+
+
+  // Start Bluetooth Slave
+
+  SerialBT.begin("ESP32_Slave");
+
+
+  Serial.println();
+  Serial.println("================================");
+  Serial.println("SMART NEURO MOBILE - SLAVE");
+  Serial.println("================================");
+  Serial.println("Bluetooth: ESP32_Slave");
+
+
+  // =================================================
+  // MOTOR DIRECTION PINS
+  // =================================================
+
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+
+  // =================================================
+  // PWM
+  // =================================================
+
+  ledcAttach(
+    ENA,
+    pwmFrequency,
+    pwmResolution
+  );
+
+  ledcAttach(
+    ENB,
+    pwmFrequency,
+    pwmResolution
+  );
+
+
+  // Stop motors initially
+
+  stopMotors();
+
+  lastCommandTime = millis();
+
+
+  Serial.println("Motors stopped.");
+  Serial.println("Waiting for Master...");
+}
+
+
+// =====================================================
+// MAIN LOOP
+// =====================================================
+
+void loop() {
+
+
+  // ===================================================
+  // CHECK BLUETOOTH CONNECTION
+  // ===================================================
+
+  if (SerialBT.hasClient()) {
+
+
+    // ================================================
+    // CHECK FOR COMMAND
+    // ================================================
+
+    if (SerialBT.available()) {
+
+
+      String command =
+        SerialBT.readStringUntil('\n');
+
+
+      command.trim();
+
+
+      Serial.print("Received command: ");
+
+      Serial.println(command);
+
+
+      // Update safety timer
+
+      lastCommandTime = millis();
+
+
+      // ==============================================
+      // FORWARD
+      // ==============================================
+
+      if (command == "F") {
+
+        moveForward(
+          defaultSpeed,
+          defaultSpeed
+        );
+      }
+
+
+      // ==============================================
+      // BACKWARD
+      // ==============================================
+
+      else if (command == "B") {
+
+        moveBackward(
+          defaultSpeed,
+          defaultSpeed
+        );
+      }
+
+
+      // ==============================================
+      // LEFT
+      // ==============================================
+
+      else if (command == "L") {
+
+        turnLeft(turnSpeed);
+      }
+
+
+      // ==============================================
+      // RIGHT
+      // ==============================================
+
+      else if (command == "R") {
+
+        turnRight(turnSpeed);
+      }
+
+
+      // ==============================================
+      // STOP
+      // ==============================================
+
+      else if (command == "S") {
+
+        stopMotors();
+      }
+
+
+      // ==============================================
+      // UNKNOWN COMMAND
+      // ==============================================
+
+      else {
+
+        stopMotors();
+
+        Serial.println("Unknown command!");
+      }
+    }
+
+
+    // =================================================
+    // SAFETY TIMEOUT
+    // =================================================
+
+    if (
+      millis() - lastCommandTime >
+      commandTimeout
+    ) {
+
+      stopMotors();
+    }
+  }
+
+
+  // ===================================================
+  // NO BLUETOOTH CLIENT
+  // ===================================================
+
+  else {
+
+    stopMotors();
+  }
+
+
+  delay(20);
+}
+
+
+// =====================================================
+// FORWARD
+// =====================================================
+
+void moveForward(
+  int speedA,
+  int speedB
+) {
+
+  // Left motor forward
+
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+
+
+  // Right motor forward
+
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+
+
+  // Motor speed
+
+  ledcWrite(ENA, speedA);
+
+  ledcWrite(ENB, speedB);
+}
+
+
+// =====================================================
+// BACKWARD
+// =====================================================
+
+void moveBackward(
+  int speedA,
+  int speedB
+) {
+
+  // Left motor backward
+
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+
+
+  // Right motor backward
+
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+
+
+  // Motor speed
+
+  ledcWrite(ENA, speedA);
+
+  ledcWrite(ENB, speedB);
+}
+
+
+// =====================================================
+// LEFT
+// =====================================================
+
+void turnLeft(int speed) {
+
+  // Left motor backward
+
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+
+
+  // Right motor forward
+
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+
+
+  ledcWrite(ENA, speed);
+
+  ledcWrite(ENB, speed);
+}
+
+
+// =====================================================
+// RIGHT
+// =====================================================
+
+void turnRight(int speed) {
+
+  // Left motor forward
+
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+
+
+  // Right motor backward
+
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+
+
+  ledcWrite(ENA, speed);
+
+  ledcWrite(ENB, speed);
+}
+
+
+// =====================================================
+// STOP
+// =====================================================
+
+void stopMotors() {
+
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+
+
+  ledcWrite(ENA, 0);
+
+  ledcWrite(ENB, 0);
+}
