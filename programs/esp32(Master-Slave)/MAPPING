@@ -1,0 +1,345 @@
+// ============================================================
+// BIOAMP EXG PILL - STAGE 2
+// EEG DATA COLLECTION + SERIAL MONITOR + SERIAL PLOTTER
+//
+// ESP32 + BioAmp EXG Pill
+//
+// Collects exactly 2500 samples per trial
+//
+// Serial Monitor:
+//   - Condition
+//   - Trial
+//   - Average
+//   - Minimum
+//   - Maximum
+//   - Peak-to-Peak
+//   - Sampling rate
+//
+// Serial Plotter:
+//   - Displays the raw EEG waveform
+//
+// ============================================================
+
+
+// -----------------------------
+// SETTINGS
+// -----------------------------
+
+#define EEG_PIN 34
+
+const int NUM_SAMPLES = 2500;
+
+// 4000 microseconds = approximately 250 Hz
+const unsigned long SAMPLE_INTERVAL_US = 4000;
+
+
+// -----------------------------
+// VARIABLES
+// -----------------------------
+
+unsigned long trialNumber = 1;
+
+long sampleSum;
+
+int minimumValue;
+int maximumValue;
+
+int samples[NUM_SAMPLES];
+
+
+// ============================================================
+// SETUP
+// ============================================================
+
+void setup() {
+
+  Serial.begin(115200);
+
+  // ESP32 ADC resolution
+  analogReadResolution(12);
+
+  // GPIO 34 is input only and ADC capable
+  pinMode(EEG_PIN, INPUT);
+
+  delay(1000);
+
+  Serial.println();
+  Serial.println("==============================================");
+  Serial.println(" BIOAMP EXG PILL - STAGE 2");
+  Serial.println(" EEG DATA COLLECTION");
+  Serial.println("==============================================");
+  Serial.println();
+
+  Serial.println("ADC Pin           : GPIO 34");
+  Serial.print("Samples per trial : ");
+  Serial.println(NUM_SAMPLES);
+
+  Serial.println("Sampling rate     : approximately 250 Hz");
+
+  Serial.println();
+  Serial.println("Serial Plotter:");
+  Serial.println("During collection, raw EEG values will be plotted.");
+  Serial.println();
+
+  Serial.println("CSV HEADER:");
+  Serial.println(
+    "Condition,Trial,Samples,Average_ADC,Minimum_ADC,Maximum_ADC,PeakToPeak"
+  );
+
+  Serial.println();
+  Serial.println("Ready.");
+  Serial.println();
+}
+
+
+// ============================================================
+// LOOP
+// ============================================================
+
+void loop() {
+
+  // ----------------------------------------------------------
+  // ASK USER FOR CONDITION
+  // ----------------------------------------------------------
+
+  Serial.println("----------------------------------------------");
+  Serial.println("Enter condition:");
+  Serial.println("STOP");
+  Serial.println("FORWARD");
+  Serial.println("BACKWARD");
+  Serial.println("LEFT");
+  Serial.println("RIGHT");
+  Serial.println("----------------------------------------------");
+  Serial.println("Type condition and press ENTER.");
+  Serial.println();
+
+  // Wait for user input
+  while (Serial.available() == 0) {
+    delay(10);
+  }
+
+  // Read condition
+  String condition = Serial.readStringUntil('\n');
+
+  condition.trim();
+  condition.toUpperCase();
+
+
+  // ----------------------------------------------------------
+  // CHECK CONDITION
+  // ----------------------------------------------------------
+
+  if (condition != "STOP" &&
+      condition != "FORWARD" &&
+      condition != "BACKWARD" &&
+      condition != "LEFT" &&
+      condition != "RIGHT") {
+
+    Serial.println();
+    Serial.println("ERROR: Invalid condition.");
+    Serial.println(
+      "Please enter STOP, FORWARD, BACKWARD, LEFT or RIGHT."
+    );
+    Serial.println();
+
+    return;
+  }
+
+
+  // ----------------------------------------------------------
+  // PREPARE FOR DATA COLLECTION
+  // ----------------------------------------------------------
+
+  Serial.println();
+  Serial.println("==============================================");
+  Serial.print("Condition : ");
+  Serial.println(condition);
+
+  Serial.print("Trial     : ");
+  Serial.println(trialNumber);
+
+  Serial.println("==============================================");
+
+  Serial.println();
+  Serial.println("Prepare yourself.");
+  Serial.println("Keep your head still.");
+  Serial.println("Avoid blinking if possible.");
+  Serial.println();
+
+  delay(3000);
+
+
+  // ----------------------------------------------------------
+  // INITIALIZE VARIABLES
+  // ----------------------------------------------------------
+
+  sampleSum = 0;
+
+  minimumValue = 4095;
+  maximumValue = 0;
+
+
+  // ----------------------------------------------------------
+  // START COLLECTION
+  // ----------------------------------------------------------
+
+  Serial.println();
+  Serial.println("COLLECTING DATA...");
+  Serial.println("Serial Plotter is now receiving EEG values.");
+  Serial.println();
+
+
+  unsigned long startTime = micros();
+
+
+  // ----------------------------------------------------------
+  // COLLECT 2500 SAMPLES
+  // ----------------------------------------------------------
+
+  for (int i = 0; i < NUM_SAMPLES; i++) {
+
+    // Read BioAmp signal
+    int value = analogRead(EEG_PIN);
+
+    // Store sample
+    samples[i] = value;
+
+    // Calculate sum
+    sampleSum += value;
+
+    // Find minimum
+    if (value < minimumValue) {
+      minimumValue = value;
+    }
+
+    // Find maximum
+    if (value > maximumValue) {
+      maximumValue = value;
+    }
+
+
+    // --------------------------------------------------------
+    // SERIAL PLOTTER OUTPUT
+    // --------------------------------------------------------
+    //
+    // IMPORTANT:
+    // Only print the numeric EEG value here.
+    //
+    // This allows Arduino Serial Plotter to display
+    // the EEG waveform.
+    //
+    Serial.println(value);
+
+
+    // --------------------------------------------------------
+    // MAINTAIN APPROXIMATELY 250 Hz
+    // --------------------------------------------------------
+
+    while ((micros() - startTime) <
+           ((unsigned long)(i + 1) * SAMPLE_INTERVAL_US)) {
+
+      // Wait
+    }
+  }
+
+
+  // ----------------------------------------------------------
+  // CALCULATE STATISTICS
+  // ----------------------------------------------------------
+
+  float averageValue =
+    (float)sampleSum / NUM_SAMPLES;
+
+  int peakToPeak =
+    maximumValue - minimumValue;
+
+
+  // ----------------------------------------------------------
+  // CALCULATE ACTUAL SAMPLING RATE
+  // ----------------------------------------------------------
+
+  unsigned long totalTime =
+    micros() - startTime;
+
+  float actualSamplingRate =
+    (float)NUM_SAMPLES /
+    ((float)totalTime / 1000000.0);
+
+
+  // ----------------------------------------------------------
+  // SERIAL MONITOR OUTPUT
+  // ----------------------------------------------------------
+
+  Serial.println();
+  Serial.println("==============================================");
+  Serial.println(" DATA COLLECTION COMPLETE");
+  Serial.println("==============================================");
+
+  Serial.print("Condition    : ");
+  Serial.println(condition);
+
+  Serial.print("Trial        : ");
+  Serial.println(trialNumber);
+
+  Serial.print("Samples      : ");
+  Serial.println(NUM_SAMPLES);
+
+  Serial.print("Average ADC  : ");
+  Serial.println(averageValue, 2);
+
+  Serial.print("Minimum ADC  : ");
+  Serial.println(minimumValue);
+
+  Serial.print("Maximum ADC  : ");
+  Serial.println(maximumValue);
+
+  Serial.print("Peak-to-Peak  : ");
+  Serial.println(peakToPeak);
+
+  Serial.print("Sampling Rate : ");
+  Serial.print(actualSamplingRate, 2);
+  Serial.println(" Hz");
+
+  Serial.println("==============================================");
+
+
+  // ----------------------------------------------------------
+  // CSV OUTPUT
+  // ----------------------------------------------------------
+
+  Serial.println();
+  Serial.println("CSV:");
+
+  Serial.print(condition);
+  Serial.print(",");
+
+  Serial.print(trialNumber);
+  Serial.print(",");
+
+  Serial.print(NUM_SAMPLES);
+  Serial.print(",");
+
+  Serial.print(averageValue, 2);
+  Serial.print(",");
+
+  Serial.print(minimumValue);
+  Serial.print(",");
+
+  Serial.print(maximumValue);
+  Serial.print(",");
+
+  Serial.println(peakToPeak);
+
+  Serial.println();
+  Serial.println("CSV row complete.");
+  Serial.println();
+
+
+  // ----------------------------------------------------------
+  // NEXT TRIAL
+  // ----------------------------------------------------------
+
+  trialNumber++;
+
+  delay(1000);
+}
