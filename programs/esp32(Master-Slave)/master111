@@ -1,0 +1,287 @@
+#include <Arduino.h>
+#include "BluetoothSerial.h"
+#include <U8g2lib.h>
+
+BluetoothSerial SerialBT;
+
+// =====================================================
+// EEG SENSOR
+// =====================================================
+
+#define SENSOR_PIN 34
+
+
+// =====================================================
+// OLED SSD1306 128x64
+// I2C:
+// SDA -> GPIO 21
+// SCL -> GPIO 22
+// =====================================================
+
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C
+u8g2(U8G2_R0, U8X8_PIN_NONE);
+
+
+// =====================================================
+// SLAVE ESP32 BLUETOOTH MAC ADDRESS
+// =====================================================
+
+uint8_t slaveAddress[] = {
+  0xD4,
+  0xE9,
+  0xF4,
+  0x79,
+  0x28,
+  0xDA
+};
+
+
+// =====================================================
+// EEG CALIBRATION
+// Adjust these values according to your BioAmp output
+// =====================================================
+
+const int EEG_MIN = 350;
+const int EEG_MAX = 4000;
+
+
+// =====================================================
+// SETUP
+// =====================================================
+
+void setup() {
+
+  Serial.begin(115200);
+
+  // Start OLED
+  u8g2.begin();
+
+  // Start Bluetooth in MASTER mode
+  SerialBT.begin("ESP32_Master", true);
+
+  Serial.println();
+  Serial.println("================================");
+  Serial.println("SMART NEURO MOBILE - MASTER");
+  Serial.println("================================");
+
+  Serial.println("Connecting to ESP32 Slave...");
+
+
+  // =================================================
+  // CONNECT USING MAC ADDRESS
+  // =================================================
+
+  while (!SerialBT.connect(slaveAddress)) {
+
+    Serial.println("Connection failed.");
+    Serial.println("Retrying...");
+
+    delay(2000);
+  }
+
+
+  Serial.println("================================");
+  Serial.println("CONNECTED TO ESP32 SLAVE");
+  Serial.println("================================");
+
+
+  // OLED startup screen
+
+  u8g2.clearBuffer();
+
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+
+  u8g2.drawStr(0, 15, "SMART NEURO MOBILE");
+  u8g2.drawStr(0, 32, "MASTER ESP32");
+  u8g2.drawStr(0, 49, "Bluetooth Connected");
+
+  u8g2.sendBuffer();
+
+  delay(1500);
+}
+
+
+// =====================================================
+// MAIN LOOP
+// =====================================================
+
+void loop() {
+
+  // ===================================================
+  // CHECK BLUETOOTH CONNECTION
+  // ===================================================
+
+  if (!SerialBT.connected()) {
+
+    Serial.println("Bluetooth disconnected!");
+
+    u8g2.clearBuffer();
+
+    u8g2.setFont(u8g2_font_ncenB08_tr);
+
+    u8g2.drawStr(0, 25, "Bluetooth");
+    u8g2.drawStr(0, 45, "Disconnected");
+
+    u8g2.sendBuffer();
+
+    delay(1000);
+
+    return;
+  }
+
+
+  // ===================================================
+  // READ EEG SIGNAL
+  // ===================================================
+
+  long signalSum = 0;
+
+  const int samples = 100;
+
+  for (int i = 0; i < samples; i++) {
+
+    signalSum += analogRead(SENSOR_PIN);
+
+    delayMicroseconds(500);
+  }
+
+
+  // Calculate average
+
+  long rawEEG = signalSum / samples;
+
+
+  // ===================================================
+  // CONVERT EEG VALUE TO FOCUS LEVEL
+  // ===================================================
+
+  int focusLevel = map(
+    rawEEG,
+    EEG_MIN,
+    EEG_MAX,
+    1,
+    100
+  );
+
+
+  // Keep value between 1 and 100
+
+  focusLevel = constrain(
+    focusLevel,
+    1,
+    100
+  );
+
+
+  // ===================================================
+  // COMMAND MAPPING
+  // ===================================================
+
+  String command;
+
+
+  // 1 - 20
+  // STOP
+
+  if (focusLevel <= 20) {
+
+    SerialBT.println("S");
+
+    command = "S (Stop)";
+  }
+
+
+  // 21 - 40
+  // BACKWARD
+
+  else if (focusLevel <= 40) {
+
+    SerialBT.println("B");
+
+    command = "B (Backward)";
+  }
+
+
+  // 41 - 60
+  // LEFT
+
+  else if (focusLevel <= 60) {
+
+    SerialBT.println("L");
+
+    command = "L (Left)";
+  }
+
+
+  // 61 - 80
+  // RIGHT
+
+  else if (focusLevel <= 80) {
+
+    SerialBT.println("R");
+
+    command = "R (Right)";
+  }
+
+
+  // 81 - 100
+  // FORWARD
+
+  else {
+
+    SerialBT.println("F");
+
+    command = "F (Forward)";
+  }
+
+
+  // ===================================================
+  // SERIAL MONITOR
+  // ===================================================
+
+  Serial.print("Raw EEG: ");
+  Serial.print(rawEEG);
+
+  Serial.print(" | Focus Level: ");
+  Serial.print(focusLevel);
+
+  Serial.print(" | Command: ");
+  Serial.println(command);
+
+
+  // ===================================================
+  // OLED DISPLAY
+  // ===================================================
+
+  u8g2.clearBuffer();
+
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+
+
+  u8g2.setCursor(0, 15);
+  u8g2.print("Raw EEG: ");
+  u8g2.print(rawEEG);
+
+
+  u8g2.setCursor(0, 32);
+  u8g2.print("Focus: ");
+  u8g2.print(focusLevel);
+
+
+  u8g2.setCursor(0, 49);
+  u8g2.print("Command:");
+
+
+  u8g2.setCursor(0, 63);
+  u8g2.print(command);
+
+
+  u8g2.sendBuffer();
+
+
+  // ===================================================
+  // LOOP DELAY
+  // ===================================================
+
+  delay(100);
+}
